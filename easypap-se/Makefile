@@ -11,7 +11,7 @@ ENABLE_SDL			= 1
 ENABLE_MONITORING	= 1
 ENABLE_VECTO		= 1
 ENABLE_TRACE		= 1
-ENABLE_MPI			= 1
+#ENABLE_MPI			= 1
 
 ####################################
 

@@ -3,23 +3,27 @@
 #include <stdbool.h>
 
 static long unsigned int *TABLE = NULL;
+static long unsigned int *TABLE2 = NULL;
 
 static volatile int changement;
 
 static unsigned long int max_grains;
 
 #define table(i, j) TABLE[(i)*DIM + (j)]
+#define table2(i, j) TABLE2[(i)*DIM + (j)]
 
 #define RGB(r, v, b) (((r) << 24 | (v) << 16 | (b) << 8) | 255)
 
 void sable_init ()
 {
   TABLE = calloc (DIM * DIM, sizeof (long unsigned int));
+  TABLE2 = calloc (DIM * DIM, sizeof (long unsigned int));
 }
 
 void sable_finalize ()
 {
   free (TABLE);
+  free(TABLE2);
 }
 
 
@@ -205,4 +209,69 @@ unsigned sable_compute_FourWave(unsigned nb_iter){
   }
   return 0;
 }
-//////////////////////////////////////////////////////////////////////////////////////////////////////////l
+
+/////////////////Version synchrone ////////////////
+
+void swap_table(){
+  long unsigned int *tmp = TABLE;
+  TABLE = TABLE2;
+  TABLE2 = tmp;
+}
+
+static inline int compute_new_state_synch (int y, int x){
+    long unsigned int sable = table(x, y);
+    long unsigned int top = table(x, y+1);
+    long unsigned int down = table(x, y-1);
+    long unsigned int left = table(x-1, y);
+    long unsigned int right = table(x+1, y);
+    table2(x,y) =  sable%4 + top/4 + left/4 + right/4 + down/4;
+    if(table2(x,y) != sable)
+      return 1;
+    return 0;
+}
+
+static int do_tile_synch(int x, int y, int width, int height, int who){
+  PRINT_DEBUG ('c', "tuile [%d-%d][%d-%d] traitée\n", x, x + width - 1, y, y + height - 1);
+  int c = 0;
+  monitoring_start_tile (who);
+  for (int i = y; i < y + height; i++)
+    for (int j = x; j < x + width; j++) {
+            c += compute_new_state_synch(i, j);
+    }
+  monitoring_end_tile (x, y, width, height, who);
+  return c;
+}
+
+unsigned sable_compute_synch (unsigned nb_iter){
+    int change;
+  for (unsigned it = 1; it <= nb_iter; it++) {
+    change = 0;
+    change  = do_tile_synch(1, 1, DIM - 2, DIM - 2, omp_get_thread_num());
+    swap_table();
+    if (change == 0)
+      return it;
+  }
+  return 0;
+}
+
+unsigned sable_compute_tiled_synch(unsigned nb_iter){
+  int change;
+  for (unsigned it = 1; it <= nb_iter; it++) {
+    change = 0;
+    #pragma omp parallel for collapse(2) schedule(runtime)
+    for (int y = 0; y < DIM; y += TILE_SIZE){
+      for (int x = 0; x < DIM; x += TILE_SIZE){
+        int res = do_tile_synch (x + (x == 0), y + (y == 0),
+                 TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                 TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+                 omp_get_thread_num());
+        if(res)
+          change += res;
+      }
+    }
+    swap_table();
+    if (change == 0)
+      return it;
+  }
+  return 0;
+}

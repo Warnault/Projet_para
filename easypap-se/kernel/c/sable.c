@@ -231,7 +231,6 @@ static inline int compute_new_state_synch (int y, int x){
 }
 
 static int do_tile_synch(int x, int y, int width, int height, int who){
-  PRINT_DEBUG ('c', "tuile [%d-%d][%d-%d] traitée\n", x, x + width - 1, y, y + height - 1);
   int c = 0;
   monitoring_start_tile (who);
   for (int i = y; i < y + height; i++)
@@ -258,7 +257,7 @@ unsigned sable_compute_tiled_synch(unsigned nb_iter){
   int change;
   for (unsigned it = 1; it <= nb_iter; it++) {
     change = 0;
-    #pragma omp parallel for collapse(2) schedule(runtime)
+    #pragma omp parallel for schedule(runtime)
     for (int y = 0; y < DIM; y += TILE_SIZE){
       for (int x = 0; x < DIM; x += TILE_SIZE){
         int res = do_tile_synch (x + (x == 0), y + (y == 0),

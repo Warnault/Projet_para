@@ -28,9 +28,8 @@ void sable_init ()
   TABLE_BOOL2 = calloc (GRAIN*GRAIN, sizeof (int));
 
     for(int y = 0; y < GRAIN; y++){
-  for(int x = 0; x < GRAIN; x++){
+    for(int x = 0; x < GRAIN; x++){
       table_bool(y, x) = 1;
-      //table_bool2(x, y) = 1;
     }
   }
 }
@@ -304,6 +303,10 @@ void swap_table_bool(){
   TABLE_BOOL2 = boolean;
 }
 
+static int check_neighborhood(int x, int y){
+  return table_bool(y, x+1) + table_bool(y, x-1) + table_bool(y-1, x) + table_bool(y+1, x) + table_bool(y, x);
+}
+
 
 static int check_neighborhood_if(int x, int y){
   int up = 0;
@@ -357,19 +360,23 @@ unsigned sable_compute_tiled_bool_synch(unsigned nb_iter){
     #pragma omp parallel for schedule(runtime)
     for (int y = 0; y < DIM; y += TILE_SIZE){
       for (int x = 0; x < DIM; x += TILE_SIZE){
-    //printf("tab[%d, %d] = %d\n", x, y, check_neighborhood_if(x/TILE_SIZE, y/TILE_SIZE));
-        if(check_neighborhood_if(x/TILE_SIZE, y/TILE_SIZE) != 0){
-        //printf("NOOOON\n");
+        int modify = 0;
+        int X = x/TILE_SIZE;
+        int Y = y/TILE_SIZE;
+        if(X == 0 || X == GRAIN - 1 || Y == 0 || Y == GRAIN -1)
+            modify = check_neighborhood_if(X, Y);
+        else
+            check_neighborhood(X, Y);            
+        if(modify != 0){
         int res = do_tile_bool_synch(x + (x == 0), y + (y == 0),
                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
                  omp_get_thread_num());
-        table_bool2(y/TILE_SIZE, x/TILE_SIZE) = res;
+        table_bool2(Y, X) = res;
         change += res;
         }
         else{
-          //printf("\n\n\n");
-          table_bool2(y/TILE_SIZE, x/TILE_SIZE) = 0;
+          table_bool2(Y, X) = 0;
         }
       }
     }

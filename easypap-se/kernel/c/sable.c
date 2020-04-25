@@ -4,6 +4,8 @@
 
 static long unsigned int *TABLE = NULL;
 static long unsigned int *TABLE2 = NULL;
+static int *TABLE_BOOL = NULL;
+static int *TABLE_BOOL2 = NULL;
 
 static volatile int changement;
 
@@ -12,18 +14,33 @@ static unsigned long int max_grains;
 #define table(i, j) TABLE[(i)*DIM + (j)]
 #define table2(i, j) TABLE2[(i)*DIM + (j)]
 
+#define table_bool(i, j) TABLE_BOOL[(i)*GRAIN + (j)]
+#define table_bool2(i, j) TABLE_BOOL2[(i)*GRAIN + (j)]
+
+
 #define RGB(r, v, b) (((r) << 24 | (v) << 16 | (b) << 8) | 255)
 
 void sable_init ()
 {
   TABLE = calloc (DIM * DIM, sizeof (long unsigned int));
   TABLE2 = calloc (DIM * DIM, sizeof (long unsigned int));
+  TABLE_BOOL = calloc (GRAIN*GRAIN, sizeof (int));
+  TABLE_BOOL2 = calloc (GRAIN*GRAIN, sizeof (int));
+
+    for(int y = 0; y < GRAIN; y++){
+  for(int x = 0; x < GRAIN; x++){
+      table_bool(y, x) = 1;
+      //table_bool2(x, y) = 1;
+    }
+  }
 }
 
 void sable_finalize ()
 {
   free (TABLE);
   free(TABLE2);
+  free(TABLE_BOOL);
+  free(TABLE_BOOL2);
 }
 
 
@@ -219,13 +236,13 @@ void swap_table(){
 }
 
 static inline int compute_new_state_synch (int y, int x){
-    long unsigned int sable = table(x, y);
-    long unsigned int top = table(x, y+1);
-    long unsigned int down = table(x, y-1);
-    long unsigned int left = table(x-1, y);
-    long unsigned int right = table(x+1, y);
-    table2(x,y) =  sable%4 + top/4 + left/4 + right/4 + down/4;
-    if(table2(x,y) != sable)
+    long unsigned int sable = table(y, x);
+    long unsigned int top = table(y+1, x);
+    long unsigned int down = table(y-1, x);
+    long unsigned int left = table(y, x-1);
+    long unsigned int right = table(y, x+1);
+    table2(y,x) =  sable%4 + top/4 + left/4 + right/4 + down/4;
+    if(table2(y,x) != sable)
       return 1;
     return 0;
 }
@@ -274,3 +291,96 @@ unsigned sable_compute_tiled_synch(unsigned nb_iter){
   }
   return 0;
 }
+
+///////////Version boolean synchrone //////////////
+
+void swap_table_bool(){
+  long unsigned int *tmp = TABLE;
+  TABLE = TABLE2;
+  TABLE2 = tmp;
+
+  int *boolean = TABLE_BOOL;
+  TABLE_BOOL = TABLE_BOOL2;
+  TABLE_BOOL2 = boolean;
+}
+
+
+static int check_neighborhood_if(int x, int y){
+  int up = 0;
+  int down = 0;
+  int left = 0;
+  int right = 0;
+  int me = table_bool(y, x);
+
+  if(y != GRAIN -1)
+    down = table_bool(y+1, x);
+  if(y != 0)
+    up = table_bool(y-1, x);
+  if(x != 0)
+    left = table_bool(y, x-1);
+  if(x != GRAIN - 1)
+    right = table_bool(y, x+1);
+
+  int res = up + down + left + right + me;
+
+  return res;
+}
+
+static int compute_new_state_bool_synch (int y, int x){
+    long unsigned int sable = table(y, x);
+    long unsigned int top = table(y+1, x);
+    long unsigned int down = table(y-1, x);
+    long unsigned int left = table(y, x-1);
+    long unsigned int right = table(y, x+1);
+    table2(y,x) =  sable%4 + top/4 + left/4 + right/4 + down/4;
+    if(table2(y,x) != sable){
+      return 1;
+    }
+    return 0;
+}
+
+static int do_tile_bool_synch (int x, int y, int width, int height, int who){
+  PRINT_DEBUG ('c', "tuile [%d-%d][%d-%d] traitée\n", x, x + width - 1, y, y + height - 1);
+  monitoring_start_tile (who);
+  int c = 0;
+  for (int i = y; i < y + height; i++)
+    for (int j = x; j < x + width; j++) {
+            c += compute_new_state_bool_synch (i, j);
+    }
+  monitoring_end_tile (x, y, width, height, who);
+  return c;
+}
+
+unsigned sable_compute_tiled_bool_synch(unsigned nb_iter){
+  for (unsigned it = 1; it <= nb_iter; it++) {
+    int change = 0;
+    #pragma omp parallel for schedule(runtime)
+    for (int y = 0; y < DIM; y += TILE_SIZE){
+      for (int x = 0; x < DIM; x += TILE_SIZE){
+    //printf("tab[%d, %d] = %d\n", x, y, check_neighborhood_if(x/TILE_SIZE, y/TILE_SIZE));
+        if(check_neighborhood_if(x/TILE_SIZE, y/TILE_SIZE) != 0){
+        //printf("NOOOON\n");
+        int res = do_tile_bool_synch(x + (x == 0), y + (y == 0),
+                 TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                 TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+                 omp_get_thread_num());
+        table_bool2(y/TILE_SIZE, x/TILE_SIZE) = res;
+        change += res;
+        }
+        else{
+          //printf("\n\n\n");
+          table_bool2(y/TILE_SIZE, x/TILE_SIZE) = 0;
+        }
+      }
+    }
+    swap_table_bool();
+    if (change == 0)
+      return it;
+  }
+  return 0;
+}
+
+
+
+
+

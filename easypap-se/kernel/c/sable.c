@@ -305,7 +305,15 @@ void swap_table_bool(){
 }
 
 static int check_neighborhood(int x, int y){
-  return table_bool(y, x+1) + table_bool(y, x-1) + table_bool(y-1, x) + table_bool(y+1, x) + table_bool(y, x);
+
+  int me = table_bool(y, x);
+  int down = table_bool(y+1, x);
+  int up = table_bool(y-1, x);
+  int left = table_bool(y, x-1);
+  int right = table_bool(y, x+1);
+
+  int res = up + down + left + right + me;
+  return res;
 }
 
 static int check_neighborhood_if(int x, int y){

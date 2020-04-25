@@ -311,7 +311,7 @@ static int check_neighborhood(int x, int y){
   int up = table_bool(y-1, x);
   int left = table_bool(y, x-1);
   int right = table_bool(y, x+1);
-
+  
   int res = up + down + left + right + me;
   return res;
 }
@@ -390,6 +390,104 @@ unsigned sable_compute_tiled_bool_synch(unsigned nb_iter){
     }
     swap_table_bool();
     if (change == 0)
+      return it;
+  }
+  return 0;
+}
+
+///////////////////////////// Version boolean & 4 vagues
+
+void swap_table_bool_prof(){
+  int *boolean = TABLE_BOOL;
+  TABLE_BOOL = TABLE_BOOL2;
+  TABLE_BOOL2 = boolean;
+}
+
+unsigned sable_compute_bool_FourWave(unsigned nb_iter){
+  int change;
+  for (unsigned it = 1; it <= nb_iter; it++) {
+    change = 0;
+    #pragma omp parallel
+    {
+    #pragma omp for schedule(runtime)
+    for (int y = 0 ; y < DIM ; y += (TILE_SIZE)*2)
+      for (int x = 0 ; x < DIM ; x += (TILE_SIZE)*2){
+        int modify = 0;
+        int X = x/TILE_SIZE;
+        int Y = y/TILE_SIZE;
+        if(X == 0 || Y == 0 || X == GRAIN-1 || Y == GRAIN -1)
+            modify = check_neighborhood_if(X, Y);
+        else
+            modify = check_neighborhood(X, Y);
+        if(modify != 0){
+          int res1 = do_tile_prof(x + (x == 0), y + (y == 0), TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)), TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)), omp_get_thread_num());
+          if(res1) change += res1;
+          table_bool2(Y, X) = res1;
+        }
+        else{
+          table_bool2(Y, X) = 0;
+        }
+      }
+    #pragma omp for schedule(runtime)
+    for (int y = TILE_SIZE ; y < DIM ; y += (TILE_SIZE)*2)
+      for (int x = 0 ; x < DIM ; x += (TILE_SIZE)*2){
+        int modify = 0;
+        int X = x/TILE_SIZE;
+        int Y = y/TILE_SIZE;
+        if(X == 0 || Y == 0 || X == GRAIN-1 || Y == GRAIN -1)
+            modify = check_neighborhood_if(X, Y);
+        else
+            modify = check_neighborhood(X, Y);
+        if(modify != 0){
+          int res2 = do_tile_prof(x + (x == 0), y + (y == 0), TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)), TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)), omp_get_thread_num());
+          if(res2) change += res2;
+          table_bool2(Y, X) = res2;
+        }
+        else{
+          table_bool2(Y, X) = 0;
+        }
+      }
+    #pragma omp for schedule(runtime)
+    for (int y = TILE_SIZE ; y < DIM ; y += (TILE_SIZE)*2)
+      for (int x = TILE_SIZE ; x < DIM ; x += (TILE_SIZE)*2){
+        int modify = 0;
+        int X = x/TILE_SIZE;
+        int Y = y/TILE_SIZE;
+        if(X == 0 || Y == 0 || X == GRAIN-1 || Y == GRAIN -1)
+            modify = check_neighborhood_if(X, Y);
+        else
+            modify = check_neighborhood(X, Y);
+        if(modify != 0){
+        int res3 = do_tile_prof(x + (x == 0), y + (y == 0), TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)), TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)), omp_get_thread_num());
+        if(res3) change += res3;
+        table_bool2(Y, X) = res3;
+        }
+        else{
+          table_bool2(Y, X) = 0;
+        }
+      }
+    #pragma omp for schedule(runtime)
+    for (int y = 0 ; y < DIM ; y += (TILE_SIZE)*2)
+      for (int x = TILE_SIZE ; x < DIM ; x += (TILE_SIZE)*2){        
+        int modify = 0;
+        int X = x/TILE_SIZE;
+        int Y = y/TILE_SIZE;
+        if(X == 0 || Y == 0 || X == GRAIN-1 || Y == GRAIN -1)
+            modify = check_neighborhood_if(X, Y);
+        else
+            modify = check_neighborhood(X, Y);
+        if(modify != 0){
+        int res4 = do_tile_prof(x + (x == 0), y + (y == 0), TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)), TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)), omp_get_thread_num());
+        if(res4) change += res4;
+        table_bool2(Y, X) = res4;
+        }
+        else{
+          table_bool2(Y, X) = 0;
+        }
+      }
+    }
+    swap_table_bool_prof();
+    if(change == 0)
       return it;
   }
   return 0;

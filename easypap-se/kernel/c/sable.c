@@ -28,8 +28,9 @@ void sable_init ()
   TABLE_BOOL2 = calloc (GRAIN*GRAIN, sizeof (int));
 
     for(int y = 0; y < GRAIN; y++){
-    for(int x = 0; x < GRAIN; x++){
+  for(int x = 0; x < GRAIN; x++){
       table_bool(y, x) = 1;
+      //table_bool2(x, y) = 1;
     }
   }
 }
@@ -307,7 +308,6 @@ static int check_neighborhood(int x, int y){
   return table_bool(y, x+1) + table_bool(y, x-1) + table_bool(y-1, x) + table_bool(y+1, x) + table_bool(y, x);
 }
 
-
 static int check_neighborhood_if(int x, int y){
   int up = 0;
   int down = 0;
@@ -363,10 +363,10 @@ unsigned sable_compute_tiled_bool_synch(unsigned nb_iter){
         int modify = 0;
         int X = x/TILE_SIZE;
         int Y = y/TILE_SIZE;
-        if(X == 0 || X == GRAIN - 1 || Y == 0 || Y == GRAIN -1)
+        if(X == 0 || Y == 0 || X == GRAIN-1 || Y == GRAIN -1)
             modify = check_neighborhood_if(X, Y);
         else
-            check_neighborhood(X, Y);            
+            modify = check_neighborhood(X, Y);
         if(modify != 0){
         int res = do_tile_bool_synch(x + (x == 0), y + (y == 0),
                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),

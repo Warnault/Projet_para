@@ -258,11 +258,24 @@ static int do_tile_synch(int x, int y, int width, int height, int who){
   return c;
 }
 
+static int do_tile_synch_opt(int x, int y, int width, int height, int who){
+  int c = 0;
+  monitoring_start_tile (who);
+  #pragma omp for schedule(runtime)
+  for (int i = y; i < y + height; i++)
+    for (int j = x; j < x + width; j++) {
+            c += compute_new_state_synch(i, j);
+    }
+  monitoring_end_tile (x, y, width, height, who);
+  return c;
+}
+
 unsigned sable_compute_synch (unsigned nb_iter){
     int change;
   for (unsigned it = 1; it <= nb_iter; it++) {
     change = 0;
-    change  = do_tile_synch(1, 1, DIM - 2, DIM - 2, omp_get_thread_num());
+    #pragma omp parallel
+    change  = do_tile_synch_opt(1, 1, DIM - 2, DIM - 2, omp_get_thread_num());
     swap_table();
     if (change == 0)
       return it;
